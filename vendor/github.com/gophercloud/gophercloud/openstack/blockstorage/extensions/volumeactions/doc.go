@@ -82,5 +82,28 @@ Example of Initializing a Volume Connection
 	if err != nil {
 		panic(err)
 	}
+
+Example of Setting a Volume's Bootable status
+
+	options := volumeactions.BootableOpts{
+		Bootable: true,
+	}
+
+	err := volumeactions.SetBootable(client, volume.ID, options).ExtractErr()
+	if err != nil {
+		panic(err)
+	}
+
+Example of Changing Type of a Volume
+
+	changeTypeOpts := volumeactions.ChangeTypeOpts{
+		NewType:         "ssd",
+		MigrationPolicy: volumeactions.MigrationPolicyOnDemand,
+	}
+
+	err = volumeactions.ChangeType(client, volumeID, changeTypeOpts).ExtractErr()
+	if err != nil {
+		panic(err)
+	}
 */
 package volumeactions

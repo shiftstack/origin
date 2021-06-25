@@ -136,13 +136,15 @@ func Create(c *gophercloud.ServiceClient, opts CreateOptsBuilder) (r CreateResul
 		r.Err = err
 		return
 	}
-	_, r.Err = c.Post(rootURL(c), b, &r.Body, nil)
+	resp, err := c.Post(rootURL(c), b, &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // Get retrieves a particular Listeners based on its unique ID.
 func Get(c *gophercloud.ServiceClient, id string) (r GetResult) {
-	_, r.Err = c.Get(resourceURL(c, id), &r.Body, nil)
+	resp, err := c.Get(resourceURL(c, id), &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
@@ -167,10 +169,10 @@ type UpdateOpts struct {
 	ConnLimit *int `json:"connection_limit,omitempty"`
 
 	// A reference to a Barbican container of TLS secrets.
-	DefaultTlsContainerRef string `json:"default_tls_container_ref,omitempty"`
+	DefaultTlsContainerRef *string `json:"default_tls_container_ref,omitempty"`
 
 	// A list of references to TLS secrets.
-	SniContainerRefs []string `json:"sni_container_refs,omitempty"`
+	SniContainerRefs *[]string `json:"sni_container_refs,omitempty"`
 
 	// The administrative state of the Listener. A valid value is true (UP)
 	// or false (DOWN).
@@ -193,20 +195,22 @@ func (opts UpdateOpts) ToListenerUpdateMap() (map[string]interface{}, error) {
 
 // Update is an operation which modifies the attributes of the specified
 // Listener.
-func Update(c *gophercloud.ServiceClient, id string, opts UpdateOpts) (r UpdateResult) {
+func Update(c *gophercloud.ServiceClient, id string, opts UpdateOptsBuilder) (r UpdateResult) {
 	b, err := opts.ToListenerUpdateMap()
 	if err != nil {
 		r.Err = err
 		return
 	}
-	_, r.Err = c.Put(resourceURL(c, id), b, &r.Body, &gophercloud.RequestOpts{
+	resp, err := c.Put(resourceURL(c, id), b, &r.Body, &gophercloud.RequestOpts{
 		OkCodes: []int{200, 202},
 	})
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // Delete will permanently delete a particular Listeners based on its unique ID.
 func Delete(c *gophercloud.ServiceClient, id string) (r DeleteResult) {
-	_, r.Err = c.Delete(resourceURL(c, id), nil)
+	resp, err := c.Delete(resourceURL(c, id), nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }

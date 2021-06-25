@@ -30,7 +30,7 @@ type ListOpts struct {
 	ID                 string `q:"id"`
 	OperatingStatus    string `q:"operating_status"`
 	Name               string `q:"name"`
-	Flavor             string `q:"flavor"`
+	FlavorID           string `q:"flavor_id"`
 	Provider           string `q:"provider"`
 	Limit              int    `q:"limit"`
 	Marker             string `q:"marker"`
@@ -100,7 +100,7 @@ type CreateOpts struct {
 	AdminStateUp *bool `json:"admin_state_up,omitempty"`
 
 	// The UUID of a flavor.
-	Flavor string `json:"flavor,omitempty"`
+	FlavorID string `json:"flavor_id,omitempty"`
 
 	// The name of the provider.
 	Provider string `json:"provider,omitempty"`
@@ -121,13 +121,15 @@ func Create(c *gophercloud.ServiceClient, opts CreateOptsBuilder) (r CreateResul
 		r.Err = err
 		return
 	}
-	_, r.Err = c.Post(rootURL(c), b, &r.Body, nil)
+	resp, err := c.Post(rootURL(c), b, &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // Get retrieves a particular Loadbalancer based on its unique ID.
 func Get(c *gophercloud.ServiceClient, id string) (r GetResult) {
-	_, r.Err = c.Get(resourceURL(c, id), &r.Body, nil)
+	resp, err := c.Get(resourceURL(c, id), &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
@@ -158,22 +160,24 @@ func (opts UpdateOpts) ToLoadBalancerUpdateMap() (map[string]interface{}, error)
 
 // Update is an operation which modifies the attributes of the specified
 // LoadBalancer.
-func Update(c *gophercloud.ServiceClient, id string, opts UpdateOpts) (r UpdateResult) {
+func Update(c *gophercloud.ServiceClient, id string, opts UpdateOptsBuilder) (r UpdateResult) {
 	b, err := opts.ToLoadBalancerUpdateMap()
 	if err != nil {
 		r.Err = err
 		return
 	}
-	_, r.Err = c.Put(resourceURL(c, id), b, &r.Body, &gophercloud.RequestOpts{
+	resp, err := c.Put(resourceURL(c, id), b, &r.Body, &gophercloud.RequestOpts{
 		OkCodes: []int{200, 202},
 	})
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // Delete will permanently delete a particular LoadBalancer based on its
 // unique ID.
 func Delete(c *gophercloud.ServiceClient, id string) (r DeleteResult) {
-	_, r.Err = c.Delete(resourceURL(c, id), nil)
+	resp, err := c.Delete(resourceURL(c, id), nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
@@ -187,18 +191,21 @@ func CascadingDelete(c *gophercloud.ServiceClient, id string) (r DeleteResult) {
 		return
 	}
 	u := fmt.Sprintf("%s?cascade=true", resourceURL(c, id))
-	_, r.Err = c.Delete(u, nil)
+	resp, err := c.Delete(u, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // GetStatuses will return the status of a particular LoadBalancer.
 func GetStatuses(c *gophercloud.ServiceClient, id string) (r GetStatusesResult) {
-	_, r.Err = c.Get(statusRootURL(c, id), &r.Body, nil)
+	resp, err := c.Get(statusRootURL(c, id), &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
 
 // GetStats will return the shows the current statistics of a particular LoadBalancer.
 func GetStats(c *gophercloud.ServiceClient, id string) (r StatsResult) {
-	_, r.Err = c.Get(statisticsRootURL(c, id), &r.Body, nil)
+	resp, err := c.Get(statisticsRootURL(c, id), &r.Body, nil)
+	_, r.Header, r.Err = gophercloud.ParseResponse(resp, err)
 	return
 }
