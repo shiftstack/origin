@@ -1,44 +1,10 @@
 package openstack
 
 import (
-	"fmt"
-	"strings"
-
 	g "github.com/onsi/ginkgo"
 	o "github.com/onsi/gomega"
 	exutil "github.com/openshift/origin/test/extended/util"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
 )
-
-type FieldGetterFunc func(obj map[string]interface{}, fields ...string) (interface{}, bool, error)
-
-func baremetalClient(dc dynamic.Interface) dynamic.ResourceInterface {
-	baremetalClient := dc.Resource(schema.GroupVersionResource{Group: "metal3.io", Resource: "baremetalhosts", Version: "v1alpha1"})
-	return baremetalClient.Namespace("openshift-machine-api")
-}
-
-func expectField(host unstructured.Unstructured, nestedField string, fieldGetter FieldGetterFunc) o.Assertion {
-	fields := strings.Split(nestedField, ".")
-
-	value, found, err := fieldGetter(host.Object, fields...)
-	o.Expect(err).NotTo(o.HaveOccurred())
-	o.Expect(found).To(o.BeTrue(), fmt.Sprintf("baremetalhost field `%s` not found", nestedField))
-	return o.Expect(value)
-}
-
-func expectStringField(host unstructured.Unstructured, nestedField string) o.Assertion {
-	return expectField(host, nestedField, func(obj map[string]interface{}, fields ...string) (interface{}, bool, error) {
-		return unstructured.NestedString(host.Object, fields...)
-	})
-}
-
-func expectBoolField(host unstructured.Unstructured, nestedField string) o.Assertion {
-	return expectField(host, nestedField, func(obj map[string]interface{}, fields ...string) (interface{}, bool, error) {
-		return unstructured.NestedBool(host.Object, fields...)
-	})
-}
 
 var _ = g.Describe("[sig-installer][Feature:openstack] OpenStack platform should", func() {
 	defer g.GinkgoRecover()
@@ -47,6 +13,9 @@ var _ = g.Describe("[sig-installer][Feature:openstack] OpenStack platform should
 
 	g.It("have Control plane nodes in a Server group", func() {
 		skipIfNotOpenStack(oc)
+
+		computeClient, err := client(serviceCompute)
+		o.Expect(err).NotTo(o.HaveOccurred())
 
 		// e2e.LoadClientset()
 		// o.Expect(configFile).To(o.Equal("ahah"))
