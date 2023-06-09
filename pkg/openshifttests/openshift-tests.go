@@ -1,4 +1,4 @@
-package main
+package openshifttests
 
 import (
 	"encoding/json"
@@ -32,7 +32,7 @@ import (
 	"k8s.io/kubectl/pkg/util/templates"
 )
 
-func main() {
+func Main(staticSuites TestSuites) {
 	// KUBE_TEST_REPO_LIST is calculated during package initialization and prevents
 	// proper mirroring of images referenced by tests. Clear the value and re-exec the
 	// current process to ensure we can verify from a known state.
@@ -73,7 +73,7 @@ func main() {
 	}
 
 	root.AddCommand(
-		newRunCommand(),
+		newRunCommand(staticSuites),
 		newRunUpgradeCommand(),
 		newImagesCommand(),
 		newRunTestCommand(),
@@ -217,7 +217,7 @@ func newImagesCommand() *cobra.Command {
 	return cmd
 }
 
-type runOptions struct {
+type RunOptions struct {
 	*testginkgo.Options
 
 	FromRepository string
@@ -232,15 +232,15 @@ type runOptions struct {
 	config *cluster.ClusterConfiguration
 }
 
-func NewRunOptions(fromRepository string) *runOptions {
-	return &runOptions{
+func NewRunOptions(fromRepository string) *RunOptions {
+	return &RunOptions{
 		Options: testginkgo.NewOptions(os.Stdout, os.Stderr),
 
 		FromRepository: fromRepository,
 	}
 }
 
-func (opt *runOptions) AsEnv() []string {
+func (opt *RunOptions) AsEnv() []string {
 	var args []string
 	args = append(args, "KUBE_TEST_REPO_LIST=") // explicitly prevent selective override
 	args = append(args, fmt.Sprintf("KUBE_TEST_REPO=%s", opt.FromRepository))
@@ -270,7 +270,7 @@ func (opt *runOptions) AsEnv() []string {
 	return args
 }
 
-func (opt *runOptions) SelectSuite(suites testSuites, args []string) (*testSuite, error) {
+func (opt *RunOptions) SelectSuite(suites TestSuites, args []string) (*TestSuite, error) {
 	suite, err := opt.Options.SelectSuite(suites.TestSuites(), args)
 	if err != nil {
 		return nil, err
@@ -281,12 +281,12 @@ func (opt *runOptions) SelectSuite(suites testSuites, args []string) (*testSuite
 		}
 	}
 	if len(opt.Provider) > 0 {
-		return &testSuite{TestSuite: *suite, PreSuite: suiteWithProviderPreSuite}, nil
+		return &TestSuite{TestSuite: *suite, PreSuite: SuiteWithProviderPreSuite}, nil
 	}
-	return &testSuite{TestSuite: *suite}, nil
+	return &TestSuite{TestSuite: *suite}, nil
 }
 
-func newRunCommand() *cobra.Command {
+func newRunCommand(staticSuites TestSuites) *cobra.Command {
 	opt := NewRunOptions(defaultTestImageMirrorLocation)
 
 	cmd := &cobra.Command{
@@ -483,7 +483,7 @@ func mirrorToFile(opt *testginkgo.Options, fn func() error) error {
 	return exitErr
 }
 
-func bindOptions(opt *runOptions, flags *pflag.FlagSet) {
+func bindOptions(opt *RunOptions, flags *pflag.FlagSet) {
 	flags.StringVar(&opt.FromRepository, "from-repository", opt.FromRepository, "A container image repository to retrieve test images from.")
 	flags.StringVar(&opt.Provider, "provider", opt.Provider, "The cluster infrastructure provider. Will automatically default to the correct value.")
 	bindTestOptions(opt.Options, flags)

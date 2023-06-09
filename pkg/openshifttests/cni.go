@@ -1,11 +1,11 @@
-package main
+package openshifttests
 
 import (
 	"strings"
 )
 
 // Determines whether a test should be run for third-party network plugin conformance testing
-func inCNISuite(name string) bool {
+func InCNISuite(name string) bool {
 	if strings.Contains(name, "[Suite:k8s]") && strings.Contains(name, "[sig-network]") {
 		// Run all upstream sig-network conformance tests
 		if strings.Contains(name, "[Conformance]") {

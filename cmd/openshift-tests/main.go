@@ -1,87 +1,24 @@
 package main
 
 import (
-	"regexp"
 	"strings"
 	"time"
 
+	"github.com/openshift/origin/pkg/openshifttests"
 	"github.com/openshift/origin/pkg/synthetictests"
 	"github.com/openshift/origin/pkg/test/ginkgo"
-	exutil "github.com/openshift/origin/test/extended/util"
 	"k8s.io/kubectl/pkg/util/templates"
-
-	// these register framework.NewFrameworkExtensions responsible for
-	// executing post-test actions, here debug and metrics gathering
-	// see https://github.com/kubernetes/kubernetes/blob/v1.26.0/test/e2e/framework/framework.go#L175-L181
-	// for more details
-	_ "k8s.io/kubernetes/test/e2e/framework/debug/init"
-	_ "k8s.io/kubernetes/test/e2e/framework/metrics/init"
 
 	_ "github.com/openshift/origin/test/extended"
 	_ "github.com/openshift/origin/test/extended/util/annotate/generated"
 )
 
-func isDisabled(name string) bool {
-	if strings.Contains(name, "[Disabled") {
-		return true
-	}
-
-	return shouldSkipUntil(name)
-}
-
-// shouldSkipUntil allows a test to be skipped with a time limit.
-// the test should be annotated with the 'SkippedUntil' tag, as shown below.
-//
-//	[SkippedUntil:05092022:blocker-bz/123456]
-//
-// - the specified date should conform to the 'MMDDYYYY' format.
-// - a valid blocker BZ must be specified
-// if the specified date in the tag has not passed yet, the test
-// will be skipped by the runner.
-func shouldSkipUntil(name string) bool {
-	re, err := regexp.Compile(`\[SkippedUntil:(\d{8}):blocker-bz\/([a-zA-Z0-9]+)\]`)
-	if err != nil {
-		// it should only happen with a programmer error and unit
-		// test will prevent that
-		return false
-	}
-	matches := re.FindStringSubmatch(name)
-	if len(matches) != 3 {
-		return false
-	}
-
-	skipUntil, err := time.Parse("01022006", matches[1])
-	if err != nil {
-		return false
-	}
-
-	if skipUntil.After(time.Now()) {
-		return true
-	}
-	return false
-}
-
-type testSuite struct {
-	ginkgo.TestSuite
-
-	PreSuite  func(opt *runOptions) error
-	PostSuite func(opt *runOptions)
-
-	PreTest func() error
-}
-
-type testSuites []testSuite
-
-func (s testSuites) TestSuites() []*ginkgo.TestSuite {
-	copied := make([]*ginkgo.TestSuite, 0, len(s))
-	for i := range s {
-		copied = append(copied, &s[i].TestSuite)
-	}
-	return copied
+func main() {
+	openshifttests.Main(staticSuites)
 }
 
 // staticSuites are all known test suites this binary should run
-var staticSuites = testSuites{
+var staticSuites = openshifttests.TestSuites{
 	{
 		TestSuite: ginkgo.TestSuite{
 			Name: "openshift/conformance",
@@ -89,7 +26,7 @@ var staticSuites = testSuites{
 		Tests that ensure an OpenShift cluster and components are working properly.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return strings.Contains(name, "[Suite:openshift/conformance/")
@@ -97,7 +34,7 @@ var staticSuites = testSuites{
 			Parallelism:         30,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -106,7 +43,7 @@ var staticSuites = testSuites{
 		Only the portion of the openshift/conformance test suite that run in parallel.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return strings.Contains(name, "[Suite:openshift/conformance/parallel")
@@ -115,7 +52,7 @@ var staticSuites = testSuites{
 			MaximumAllowedFlakes: 15,
 			SyntheticEventTests:  ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -124,15 +61,15 @@ var staticSuites = testSuites{
 		Only the portion of the openshift/conformance test suite that run serially.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Suite:openshift/conformance/serial") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Suite:openshift/conformance/serial") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			TestTimeout:         40 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -142,21 +79,21 @@ var staticSuites = testSuites{
 		changing the global cluster configuration in a way that can affect other tests.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				// excluded due to stopped instance handling until https://bugzilla.redhat.com/show_bug.cgi?id=1905709 is fixed
 				if strings.Contains(name, "Cluster should survive master and worker failure and recover with machine health checks") {
 					return false
 				}
-				return strings.Contains(name, "[Feature:EtcdRecovery]") || strings.Contains(name, "[Feature:NodeRecovery]") || isStandardEarlyTest(name)
+				return strings.Contains(name, "[Feature:EtcdRecovery]") || strings.Contains(name, "[Feature:NodeRecovery]") || openshifttests.IsStandardEarlyTest(name)
 
 			},
 			// Duration of the quorum restore test exceeds 60 minutes.
 			TestTimeout:         90 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.SystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -165,7 +102,7 @@ var staticSuites = testSuites{
 		The default Kubernetes conformance suite.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return strings.Contains(name, "[Suite:k8s]") && strings.Contains(name, "[Conformance]")
@@ -173,7 +110,7 @@ var staticSuites = testSuites{
 			Parallelism:         30,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -182,10 +119,10 @@ var staticSuites = testSuites{
 		Tests that exercise the OpenShift build functionality.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Feature:Builds]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:Builds]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism: 7,
 			// TODO: Builds are really flaky right now, remove when we land perf updates and fix io on workers
@@ -194,7 +131,7 @@ var staticSuites = testSuites{
 			TestTimeout:         60 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -203,15 +140,15 @@ var staticSuites = testSuites{
 		Tests that exercise the OpenShift template functionality.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Feature:Templates]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:Templates]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism:         1,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -220,14 +157,14 @@ var staticSuites = testSuites{
 		Tests that exercise the OpenShift image-registry functionality.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) || strings.Contains(name, "[Local]") {
+				if openshifttests.IsDisabled(name) || strings.Contains(name, "[Local]") {
 					return false
 				}
-				return strings.Contains(name, "[sig-imageregistry]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[sig-imageregistry]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -236,16 +173,16 @@ var staticSuites = testSuites{
 		Tests that exercise language and tooling images shipped as part of OpenShift.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) || strings.Contains(name, "[Local]") {
+				if openshifttests.IsDisabled(name) || strings.Contains(name, "[Local]") {
 					return false
 				}
-				return strings.Contains(name, "[Feature:ImageEcosystem]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:ImageEcosystem]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism:         7,
 			TestTimeout:         20 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -254,16 +191,16 @@ var staticSuites = testSuites{
 		Tests that exercise the OpenShift / Jenkins integrations provided by the OpenShift Jenkins image/plugins and the Pipeline Build Strategy.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Feature:Jenkins]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:Jenkins]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism:         4,
 			TestTimeout:         20 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -272,16 +209,16 @@ var staticSuites = testSuites{
 		Tests that exercise the OpenShift / Jenkins integrations provided by the OpenShift Jenkins image/plugins and the Pipeline Build Strategy.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Feature:JenkinsRHELImagesOnly]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:JenkinsRHELImagesOnly]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism:         4,
 			TestTimeout:         20 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -290,7 +227,7 @@ var staticSuites = testSuites{
 		Tests that verify the scalability characteristics of the cluster. Currently this is focused on core performance behaviors and preventing regressions.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return strings.Contains(name, "[Suite:openshift/scalability]")
@@ -298,7 +235,7 @@ var staticSuites = testSuites{
 			Parallelism: 1,
 			TestTimeout: 20 * time.Minute,
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -307,14 +244,14 @@ var staticSuites = testSuites{
 		Run only tests that are excluded from conformance. Makes identifying omitted tests easier.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return !strings.Contains(name, "[Suite:openshift/conformance/")
 			},
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -323,14 +260,14 @@ var staticSuites = testSuites{
 		Run only tests for test-cmd.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Feature:LegacyCommandTests]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Feature:LegacyCommandTests]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithNoProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithNoProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -341,7 +278,7 @@ var staticSuites = testSuites{
 		See https://github.com/kubernetes/kubernetes/blob/master/test/e2e/storage/external/README.md for required format of the file.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 
@@ -355,9 +292,9 @@ var staticSuites = testSuites{
 			},
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithKubeTestInitializationPreSuite,
-		PostSuite: func(opt *runOptions) {
-			printStorageCapabilities(opt.Out)
+		PreSuite: openshifttests.SuiteWithKubeTestInitializationPreSuite,
+		PostSuite: func(opt *openshifttests.RunOptions) {
+			openshifttests.PrintStorageCapabilities(opt.Out)
 		},
 	},
 	{
@@ -367,7 +304,7 @@ var staticSuites = testSuites{
 		This test suite repeatedly verifies the networking function of the cluster in parallel to find flakes.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				// Skip NetworkPolicy tests for https://bugzilla.redhat.com/show_bug.cgi?id=1980141
@@ -378,14 +315,14 @@ var staticSuites = testSuites{
 				if strings.Contains(name, "[Serial:Self]") {
 					return false
 				}
-				return (strings.Contains(name, "[Suite:openshift/conformance/") && strings.Contains(name, "[sig-network]")) || isStandardEarlyOrLateTest(name)
+				return (strings.Contains(name, "[Suite:openshift/conformance/") && strings.Contains(name, "[sig-network]")) || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			Parallelism:         60,
 			Count:               12,
 			TestTimeout:         20 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -394,13 +331,13 @@ var staticSuites = testSuites{
 		The conformance testing suite for certified third-party CNI plugins.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return inCNISuite(name)
+				return openshifttests.InCNISuite(name)
 			},
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -410,17 +347,17 @@ var staticSuites = testSuites{
 		`),
 			Matches: func(name string) bool {
 
-				_, exists := minimal[name]
+				_, exists := openshifttests.Minimal[name]
 				if !exists {
 					return false
 				}
-				return !isDisabled(name) && strings.Contains(name, "[Suite:openshift/conformance/parallel")
+				return !openshifttests.IsDisabled(name) && strings.Contains(name, "[Suite:openshift/conformance/parallel")
 			},
 			Parallelism:          20,
 			MaximumAllowedFlakes: 15,
 			SyntheticEventTests:  ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithKubeTestInitializationPreSuite,
+		PreSuite: openshifttests.SuiteWithKubeTestInitializationPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -432,7 +369,7 @@ var staticSuites = testSuites{
 				return true
 			},
 		},
-		PreSuite: suiteWithInitializedProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithInitializedProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -441,16 +378,16 @@ var staticSuites = testSuites{
 		This test suite runs vertical scaling tests to exercise the safe scale-up and scale-down of etcd members.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Suite:openshift/etcd/scaling") || strings.Contains(name, "[Feature:EtcdVerticalScaling]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Suite:openshift/etcd/scaling") || strings.Contains(name, "[Feature:EtcdVerticalScaling]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			// etcd's vertical scaling test can take a while for apiserver rollouts to stabilize on the same revision
 			TestTimeout:         60 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.StableSystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -459,16 +396,16 @@ var staticSuites = testSuites{
 		This test suite runs etcd recovery tests to exercise the safe restore process of etcd members.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
-				return strings.Contains(name, "[Suite:openshift/etcd/recovery") || strings.Contains(name, "[Feature:EtcdRecovery]") || isStandardEarlyOrLateTest(name)
+				return strings.Contains(name, "[Suite:openshift/etcd/recovery") || strings.Contains(name, "[Feature:EtcdRecovery]") || openshifttests.IsStandardEarlyOrLateTest(name)
 			},
 			// etcd's restore test can take a while for apiserver rollouts to stabilize
 			TestTimeout:         120 * time.Minute,
 			SyntheticEventTests: ginkgo.JUnitForEventsFunc(synthetictests.SystemEventInvariants),
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
 	{
 		TestSuite: ginkgo.TestSuite{
@@ -477,72 +414,13 @@ var staticSuites = testSuites{
 		This test suite runs tests to validate realtime functionality on nodes.
 		`),
 			Matches: func(name string) bool {
-				if isDisabled(name) {
+				if openshifttests.IsDisabled(name) {
 					return false
 				}
 				return strings.Contains(name, "[Suite:openshift/nodes/realtime")
 			},
 			TestTimeout: 30 * time.Minute,
 		},
-		PreSuite: suiteWithProviderPreSuite,
+		PreSuite: openshifttests.SuiteWithProviderPreSuite,
 	},
-}
-
-// isStandardEarlyTest returns true if a test is considered part of the normal
-// pre or post condition tests.
-func isStandardEarlyTest(name string) bool {
-	if !strings.Contains(name, "[Early]") {
-		return false
-	}
-	return strings.Contains(name, "[Suite:openshift/conformance/parallel")
-}
-
-// isStandardEarlyOrLateTest returns true if a test is considered part of the normal
-// pre or post condition tests.
-func isStandardEarlyOrLateTest(name string) bool {
-	if !strings.Contains(name, "[Early]") && !strings.Contains(name, "[Late]") {
-		return false
-	}
-	return strings.Contains(name, "[Suite:openshift/conformance/parallel")
-}
-
-// suiteWithInitializedProviderPreSuite loads the provider info, but does not
-// exclude any tests specific to that provider.
-func suiteWithInitializedProviderPreSuite(opt *runOptions) error {
-	config, err := decodeProvider(opt.Provider, opt.DryRun, true, nil)
-	if err != nil {
-		return err
-	}
-	opt.config = config
-
-	opt.Provider = config.ToJSONString()
-	return nil
-}
-
-// suiteWithProviderPreSuite ensures that the suite filters out tests from providers
-// that aren't relevant (see exutilcluster.ClusterConfig.MatchFn) by loading the
-// provider info from the cluster or flags.
-func suiteWithProviderPreSuite(opt *runOptions) error {
-	if err := suiteWithInitializedProviderPreSuite(opt); err != nil {
-		return err
-	}
-	opt.MatchFn = opt.config.MatchFn()
-	return nil
-}
-
-// suiteWithNoProviderPreSuite blocks out provider settings from being passed to
-// child tests. Used with suites that should not have cloud specific behavior.
-func suiteWithNoProviderPreSuite(opt *runOptions) error {
-	opt.Provider = `none`
-	return suiteWithProviderPreSuite(opt)
-}
-
-// suiteWithKubeTestInitialization invokes the Kube suite in order to populate
-// data from the environment for the CSI suite. Other suites should use
-// suiteWithProviderPreSuite.
-func suiteWithKubeTestInitializationPreSuite(opt *runOptions) error {
-	if err := suiteWithProviderPreSuite(opt); err != nil {
-		return err
-	}
-	return initializeTestFramework(exutil.TestContext, opt.config, opt.DryRun)
 }

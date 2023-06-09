@@ -1,4 +1,4 @@
-package main
+package openshifttests
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ import (
 )
 
 // upgradeSuites are all known upgrade test suites this binary should run
-var upgradeSuites = testSuites{
+var upgradeSuites = TestSuites{
 	{
 		TestSuite: ginkgo.TestSuite{
 			Name: "all",
@@ -27,7 +27,7 @@ var upgradeSuites = testSuites{
 		Run all tests.
 		`),
 			Matches: func(name string) bool {
-				if isStandardEarlyTest(name) {
+				if IsStandardEarlyTest(name) {
 					return true
 				}
 				return strings.Contains(name, "[Feature:ClusterUpgrade]") && !strings.Contains(name, "[Suite:k8s]")
@@ -44,7 +44,7 @@ var upgradeSuites = testSuites{
 		Run only the tests that verify the platform remains available.
 		`),
 			Matches: func(name string) bool {
-				if isStandardEarlyTest(name) {
+				if IsStandardEarlyTest(name) {
 					return true
 				}
 				return strings.Contains(name, "[Feature:ClusterUpgrade]") && !strings.Contains(name, "[Suite:k8s]")
@@ -61,7 +61,7 @@ var upgradeSuites = testSuites{
 	Don't run disruption tests.
 		`),
 			Matches: func(name string) bool {
-				if isStandardEarlyTest(name) {
+				if IsStandardEarlyTest(name) {
 					return true
 				}
 				return strings.Contains(name, "[Feature:ClusterUpgrade]") && !strings.Contains(name, "[Suite:k8s]")
@@ -75,7 +75,7 @@ var upgradeSuites = testSuites{
 
 // upgradeTestPreSuite validates the test options and gathers data useful prior to launching the upgrade and it's
 // related tests.
-func upgradeTestPreSuite(opt *runOptions) error {
+func upgradeTestPreSuite(opt *RunOptions) error {
 	if !opt.DryRun {
 		testOpt := ginkgo.NewTestOptions(os.Stdout, os.Stderr)
 		config, err := decodeProvider(os.Getenv("TEST_PROVIDER"), testOpt.DryRun, false, nil)
@@ -171,7 +171,7 @@ func filterUpgrade(tests []upgrades.Test, match func(string) bool) error {
 	return nil
 }
 
-func bindUpgradeOptions(opt *runOptions, flags *pflag.FlagSet) {
+func bindUpgradeOptions(opt *RunOptions, flags *pflag.FlagSet) {
 	flags.StringVar(&opt.ToImage, "to-image", opt.ToImage, "Specify the image to test an upgrade to.")
 	flags.StringSliceVar(&opt.TestOptions, "options", opt.TestOptions, "A set of KEY=VALUE options to control the test. See the help text.")
 }

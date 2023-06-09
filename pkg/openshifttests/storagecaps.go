@@ -1,4 +1,4 @@
-package main
+package openshifttests
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ type YamlManifest struct {
 	DriverInfo    `yaml:"DriverInfo"`
 }
 
-func printStorageCapabilities(out io.Writer) {
+func PrintStorageCapabilities(out io.Writer) {
 	manifestFilename := strings.Split(os.Getenv(manifestEnvVar), ",")[0]
 	if manifestFilename == "" {
 		fmt.Fprintln(out, "No manifest filename passed")
